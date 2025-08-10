@@ -1,15 +1,18 @@
 name: 'klaviyo'
-profile: 'databricks' 
+profile: 'databricks'
 version: '0.9.0'
 config-version: 2
 require-dbt-version: [">=1.3.0", "<2.0.0"]
 
-model-paths: ["models"]
-packages-install-path: "dbt_packages"
+dispatch:
+  - macro_namespace: dbt_utils
+    search_order: ['spark_utils', 'dbt_utils']
 
+# Vars for the transform package (and passed down to klaviyo_source)
 vars:
-  klaviyo_database: 0006_wsg       # Your Databricks catalog
-  klaviyo_schema: stg_klaviyo             # The schema created by dbt_klaviyo_source
+  # The staging models created by klaviyo_source land here:
+  klaviyo_database: 0006_wsg
+  klaviyo_schema: default_stg_klaviyo
 
   klaviyo__email_attribution_lookback: 120
   klaviyo__sms_attribution_lookback: 24
@@ -42,14 +45,16 @@ vars:
     - 'checkout started'
     - 'cancelled order'
 
+  # Optional passthroughs (keep empty unless you need custom columns)
   klaviyo__event_pass_through_columns: []
   klaviyo__person_pass_through_columns: []
 
-dispatch:
-  - macro_namespace: dbt_utils
-    search_order: ['spark_utils', 'dbt_utils']
+model-paths: ["models"]
+packages-install-path: "dbt_packages"
 
 models:
   +materialized: table
+
+  # Final marts/facts will land here (separate from staging)
   klaviyo:
-    +schema: fct_klaviyo                  # This is where final models will be saved
+    +schema: fct_klaviyo
