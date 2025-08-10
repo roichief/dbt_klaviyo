@@ -14,12 +14,12 @@ vars:
   klaviyo_schema: default_stg_klaviyo
 
   # >>> ADD THESE: point transform models to your staging models <<<
-  event_table: "{{ ref('stg_klaviyo__event') }}"
-  person_table: "{{ ref('stg_klaviyo__person') }}"
-  campaign_table: "{{ ref('stg_klaviyo__campaign') }}"
-  flow_table: "{{ ref('stg_klaviyo__flow') }}"
-  metric_table: "{{ ref('stg_klaviyo__metric') }}"
-  integration_table: "{{ ref('stg_klaviyo__integration') }}"
+  event: "{{ ref('stg_klaviyo__event') }}"
+  person: "{{ ref('stg_klaviyo__person') }}"
+  campaign: "{{ ref('stg_klaviyo__campaign') }}"
+  flow: "{{ ref('stg_klaviyo__flow') }}"
+  metric: "{{ ref('stg_klaviyo__metric') }}"
+  integration: "{{ ref('stg_klaviyo__integration') }}"
 
   klaviyo__email_attribution_lookback: 120
   klaviyo__sms_attribution_lookback: 24
