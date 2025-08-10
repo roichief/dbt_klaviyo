@@ -8,7 +8,7 @@ model-paths: ["models"]
 packages-install-path: "dbt_packages"
 
 vars:
-  klaviyo_database: 0006_wonsulting       # Your Databricks catalog
+  klaviyo_database: 0006_wsg       # Your Databricks catalog
   klaviyo_schema: stg_klaviyo             # The schema created by dbt_klaviyo_source
 
   klaviyo__email_attribution_lookback: 120
