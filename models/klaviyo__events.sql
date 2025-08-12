@@ -1,6 +1,4 @@
-{{--
-  File: klaviyo_main/models/klaviyo/klaviyo__events.sql
---}}
+-- File: klaviyo_main/models/klaviyo/klaviyo__events.sql
 
 {{
     config(
@@ -34,7 +32,7 @@ with events as (
 
 /*
   Build the base event fields from the INT table, but EXCLUDE any columns
-  we will (re)attach from dimension tables to prevent duplicate names.
+  we will reintroduce from dimension tables to prevent duplicate names.
 */
 event_fields as (
 
@@ -46,7 +44,7 @@ event_fields as (
         'campaign_name','campaign_type','campaign_subject_line',
         'flow_name',
 
-        -- exclude person fields (both raw and aliased possibilities)
+        -- exclude person fields (raw + possible aliased names)
         'city','country','region','email','timezone',
         'person_city','person_country','person_region','person_email','person_timezone',
 
