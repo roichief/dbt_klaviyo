@@ -15,7 +15,6 @@ with events as (
     from {{ ref('int_klaviyo__event_attribution') }}
 
     {% if is_incremental() %}
-      -- Look back an extra hour to catch late-arriving rows
       where _fivetran_synced >= cast(coalesce(
               (
                   select {{ dbt.dateadd(
@@ -30,84 +29,48 @@ with events as (
     {% endif %}
 ),
 
--- Build base fields from INT, excluding anything we will re-add from dimensions
 event_fields as (
 
     {% set exclude_fields = [
         'touch_session','last_touch_id','session_start_at','session_event_type','type','session_touch_type',
-
-        -- descriptive fields that can exist upstream and will be rejoined
         'campaign_name','campaign_type','campaign_subject_line','subject',
         'flow_name',
-
-        -- person fields (raw or already-aliased)
         'city','country','region','email','timezone',
         'person_city','person_country','person_region','person_email','person_timezone',
-
-        -- integration fields
         'integration_id','integration_name','integration_category'
     ] %}
 
     select
         {{ dbt_utils.star(from=ref('int_klaviyo__event_attribution'), except=exclude_fields) }},
-
-        -- keep raw 'type' which star() would drop due to substring matches
         type,
-
-        -- split out campaign and flow IDs for last-touch attribution
         case when session_touch_type = 'campaign' then last_touch_id end as last_touch_campaign_id,
         case when session_touch_type = 'flow'     then last_touch_id end as last_touch_flow_id,
-
-        -- only non-null if the event qualified for attribution
         case when last_touch_id is not null then session_start_at   end as last_touch_at,
         case when last_touch_id is not null then session_event_type end as last_touch_event_type,
         case when last_touch_id is not null then session_touch_type end as last_touch_type
-
     from events
 ),
 
-campaign as (
-    select *
-    from {{ var('campaign') }}
-),
-
-flow as (
-    select *
-    from {{ var('flow') }}
-),
-
-person as (
-    select *
-    from {{ var('person') }}
-),
-
-metric as (  -- for integration fields
-    select *
-    from {{ var('metric') }}
-),
+campaign as ( select * from {{ var('campaign') }} ),
+flow    as ( select * from {{ var('flow') }} ),
+person  as ( select * from {{ var('person') }} ),
+metric  as ( select * from {{ var('metric') }} ),
 
 join_fields as (
-
     select
         ef.*,
-
-        -- reintroduce descriptive fields from their proper dimensions
         c.campaign_name,
         c.campaign_type,
         c.subject as campaign_subject_line,
-
         f.flow_name,
-
         p.city     as person_city,
         p.country  as person_country,
         p.region   as person_region,
         p.email    as person_email,
         p.timezone as person_timezone,
-
         m.integration_id,
         m.integration_name,
         m.integration_category
-
     from event_fields ef
     left join campaign c
       on ef.last_touch_campaign_id = c.campaign_id
