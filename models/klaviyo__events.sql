@@ -30,39 +30,35 @@ with events as (
     {% endif %}
 ),
 
-/*
-  Build the base event fields from the INT table, but EXCLUDE any columns
-  we will reintroduce from dimension tables to prevent duplicate names.
-*/
+-- Build base fields from INT, excluding anything we will re-add from dimensions
 event_fields as (
 
     {% set exclude_fields = [
-        -- originally excluded
         'touch_session','last_touch_id','session_start_at','session_event_type','type','session_touch_type',
 
-        -- exclude descriptive/dimension fields to avoid duplicates
-        'campaign_name','campaign_type','campaign_subject_line',
+        -- descriptive fields that can exist upstream and will be rejoined
+        'campaign_name','campaign_type','campaign_subject_line','subject',
         'flow_name',
 
-        -- exclude person fields (raw + possible aliased names)
+        -- person fields (raw or already-aliased)
         'city','country','region','email','timezone',
         'person_city','person_country','person_region','person_email','person_timezone',
 
-        -- exclude integration fields
+        -- integration fields
         'integration_id','integration_name','integration_category'
     ] %}
 
     select
         {{ dbt_utils.star(from=ref('int_klaviyo__event_attribution'), except=exclude_fields) }},
 
-        -- keep raw 'type' which dbt_utils.star would drop due to substring matches
+        -- keep raw 'type' which star() would drop due to substring matches
         type,
 
         -- split out campaign and flow IDs for last-touch attribution
         case when session_touch_type = 'campaign' then last_touch_id end as last_touch_campaign_id,
         case when session_touch_type = 'flow'     then last_touch_id end as last_touch_flow_id,
 
-        -- make these non-null only if the event qualified for attribution
+        -- only non-null if the event qualified for attribution
         case when last_touch_id is not null then session_start_at   end as last_touch_at,
         case when last_touch_id is not null then session_event_type end as last_touch_event_type,
         case when last_touch_id is not null then session_touch_type end as last_touch_type
@@ -85,7 +81,7 @@ person as (
     from {{ var('person') }}
 ),
 
-metric as (  -- pulled only to join INTEGRATION fields
+metric as (  -- for integration fields
     select *
     from {{ var('metric') }}
 ),
@@ -95,7 +91,7 @@ join_fields as (
     select
         ef.*,
 
-        -- bring back descriptive fields from their proper dimensions
+        -- reintroduce descriptive fields from their proper dimensions
         c.campaign_name,
         c.campaign_type,
         c.subject as campaign_subject_line,
