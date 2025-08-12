@@ -91,8 +91,8 @@ join_fields as (
 
     select
         event_fields.*,
-        campaign.campaign_name,
-        campaign.campaign_type,
+--        campaign.campaign_name,
+--        campaign.campaign_type,
         campaign.subject as campaign_subject_line,
         flow.flow_name, 
         person.city as person_city,
