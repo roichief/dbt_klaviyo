@@ -44,11 +44,6 @@ with events as (
 create_sessions as (
     select
         *,
-        -- default klaviyo__event_attribution_filter limits attribution-eligible events to to email opens, email clicks, and sms opens
-        -- https://help.klaviyo.com/hc/en-us/articles/115005248128
-
-        -- events that come with flow/campaign attributions (and are eligible event types) will create new sessions.
-        -- non-attributed events that come in afterward will be batched into the same attribution-session
         sum(case when touch_id is not null
         {% if var('klaviyo__eligible_attribution_events') != [] %}
             and lower(type) in {{ "('" ~ (var('klaviyo__eligible_attribution_events') | join("', '")) ~ "')" }}
@@ -60,18 +55,12 @@ create_sessions as (
 
 ),
 
--- "session start" refers to the event in a "touch session" that is already attributed with a campaign or flow by Klaviyo
--- a new event that is attributed with a campaign/flow will trigger a new session, so there will only be one already-attributed event per each session 
--- events that are missing attributions will borrow data from the event that triggered the session, if they are in the lookback window (see `attribute` CTE)
 last_touches as (
 
     select 
         *,
-        -- when did the touch session begin?
         min(occurred_at) over(partition by person_id, source_relation, touch_session) as session_start_at,
 
-        -- get the kind of metric/event that triggered the attribution session, in order to decide 
-        -- to use the sms or email lookback value. 
         first_value(type) over(
             partition by person_id, source_relation, touch_session order by occurred_at asc rows between unbounded preceding and current row) as session_event_type
 
@@ -82,20 +71,16 @@ attribute as (
 
     select 
         *,
-        -- klaviyo uses different lookback windows for email and sms events
-        -- default email lookback = 5 days (120 hours) -> https://help.klaviyo.com/hc/en-us/articles/115005248128#conversion-tracking1
-        -- default sms lookback: 1 day (24 hours -> https://help.klaviyo.com/hc/en-us/articles/115005248128#sms-conversion-tracking7
-
-        coalesce(touch_id, -- use pre-attributed flow/campaign if provided
+        coalesce(touch_id,
             case 
             when {{ dbt.datediff('session_start_at', 'occurred_at', 'hour') }} <= (
                 case 
                 when lower(session_event_type) like '%sms%' then {{ var('klaviyo__sms_attribution_lookback') }}
                 else {{ var('klaviyo__email_attribution_lookback') }} end
-            ) -- if the events fall within the lookback window, attribute
+            )
             then first_value(touch_id) over (
                 partition by person_id, source_relation, touch_session order by occurred_at asc rows between unbounded preceding and current row)
-            else null end) as last_touch_id -- session qualified for attribution -> we will call this "last touch"
+            else null end) as last_touch_id
 
     from last_touches 
 ),
@@ -105,11 +90,10 @@ final as (
     select
         *,
 
-        -- get whether the event is attributed to a flow or campaign
         coalesce(touch_type, first_value(touch_type) over(
             partition by person_id, source_relation, touch_session order by occurred_at asc rows between unbounded preceding and current row)) 
 
-            as session_touch_type -- if the session events qualified for attribution, extract the type of touch they are attributed to
+            as session_touch_type
 
     from attribute 
 )

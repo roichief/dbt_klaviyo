@@ -4,7 +4,6 @@ with events as (
 ),
 
 pivot_out_events as (
-    
     select 
         person_id,
         last_touch_campaign_id,
@@ -16,19 +15,19 @@ pivot_out_events as (
         min(occurred_at) as first_event_at,
         max(occurred_at) as last_event_at
 
-    -- sum up the numeric value associated with events (most likely will mean revenue)
-    {% for rm in var('klaviyo__sum_revenue_metrics') %}
-    , sum(case when lower(type) = '{{ rm | lower }}' then 
-            coalesce({{ fivetran_utils.try_cast("numeric_value", "numeric") }}, 0)
-            else 0 end) 
-        as {{ 'sum_revenue_' ~ rm | replace(' ', '_') | replace('(', '') | replace(')', '') | lower }} -- removing special characters that I have seen in different integration events
-    {% endfor %}
+        -- revenue metrics
+        {% for rm in var('klaviyo__sum_revenue_metrics') %}
+        , sum(case when lower(type_canonical) = '{{ rm | lower }}' then 
+                coalesce({{ fivetran_utils.try_cast("numeric_value", "numeric") }}, 0)
+              else 0 end) 
+            as {{ 'sum_revenue_' ~ rm | replace(' ', '_') | replace('(', '') | replace(')', '') | lower }}
+        {% endfor %}
 
-    -- count up the number of instances of each metric
-    {% for cm in var('klaviyo__count_metrics') %}
-    , sum(case when lower(type) = '{{ cm | lower }}' then 1 else 0 end) 
-        as {{ 'count_' ~ cm | replace(' ', '_') | replace('(', '') | replace(')', '') | lower }} -- removing special characters that I have seen in different integration events
-    {% endfor %}
+        -- count metrics
+        {% for cm in var('klaviyo__count_metrics') %}
+        , sum(case when lower(type_canonical) = '{{ cm | lower }}' then 1 else 0 end) 
+            as {{ 'count_' ~ cm | replace(' ', '_') | replace('(', '') | replace(')', '') | lower }}
+        {% endfor %}
 
     from events
     {{ dbt_utils.group_by(n=7) }}
