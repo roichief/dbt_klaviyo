@@ -1,12 +1,11 @@
+-- Joins raw campaign records to the variation-level metrics
+
 with campaign as (
   select
     *,
-    /* collapse '', null, and remove a leading catalog. */
+    /* Normalize once so it matches metrics */
     coalesce(
-      nullif(
-        regexp_replace(lower(trim(source_relation)), '^[^.]+\\.', ''),  -- drop catalog prefix
-        ''
-      ),
+      nullif(regexp_replace(lower(trim(source_relation)), '^[^.]+\\.', ''), ''),
       '{{ var("klaviyo__default_source_relation", "klaviyo") }}'
     ) as source_relation_norm
   from {{ var('campaign') }}
@@ -14,14 +13,7 @@ with campaign as (
 
 campaign_metrics as (
   select
-    *,
-    coalesce(
-      nullif(
-        regexp_replace(lower(trim(source_relation)), '^[^.]+\\.', ''),
-        ''
-      ),
-      '{{ var("klaviyo__default_source_relation", "klaviyo") }}'
-    ) as source_relation_norm
+    *
   from {{ ref('int_klaviyo__campaign_flow_metrics') }}
 ),
 
@@ -30,7 +22,7 @@ campaign_join as (
       'last_touch_campaign_id',
       'last_touch_flow_id',
       'source_relation',
-      'source_relation_norm'
+      'source_relation_norm'     -- avoid duplicate col name when we select campaign.*
   ] %}
 
   select
