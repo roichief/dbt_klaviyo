@@ -1,5 +1,3 @@
-{{ config(materialized='view') }}
-
 with campaign as (
   select
     *,
@@ -9,7 +7,7 @@ with campaign as (
         regexp_replace(lower(trim(source_relation)), '^[^.]+\\.', ''),  -- drop catalog prefix
         ''
       ),
-      'klaviyo'
+      '{{ var("klaviyo__default_source_relation", "klaviyo") }}'
     ) as source_relation_norm
   from {{ var('campaign') }}
 ),
@@ -17,13 +15,12 @@ with campaign as (
 campaign_metrics as (
   select
     *,
-    /* normalize to mirror the dim side (kept for safety even though int model already outputs normalized) */
     coalesce(
       nullif(
         regexp_replace(lower(trim(source_relation)), '^[^.]+\\.', ''),
         ''
       ),
-      'klaviyo'
+      '{{ var("klaviyo__default_source_relation", "klaviyo") }}'
     ) as source_relation_norm
   from {{ ref('int_klaviyo__campaign_flow_metrics') }}
 ),
@@ -32,18 +29,19 @@ campaign_join as (
   {% set exclude_fields = [
       'last_touch_campaign_id',
       'last_touch_flow_id',
-      'source_relation',          -- raw
-      'source_relation_norm'      -- avoid duplicate column name with campaign.*
+      'source_relation',
+      'source_relation_norm'
   ] %}
 
   select
     campaign.*,
-
-    /* expand metrics columns but drop keys we don't want to duplicate */
-    {{ dbt_utils.star(from=ref('int_klaviyo__campaign_flow_metrics'), except=exclude_fields) }}
+    {{ dbt_utils.star(
+         from=ref('int_klaviyo__campaign_flow_metrics'),
+         except=exclude_fields
+    ) }}
   from campaign
   left join campaign_metrics
-    on campaign.campaign_id        = campaign_metrics.last_touch_campaign_id
+    on campaign.campaign_id          = campaign_metrics.last_touch_campaign_id
    and campaign.source_relation_norm = campaign_metrics.source_relation_norm
 ),
 
