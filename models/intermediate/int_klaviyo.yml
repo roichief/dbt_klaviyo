@@ -100,7 +100,7 @@ models:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
             - variation_id
-            - source_relation
+            - source_relation_norm
             - last_touch_campaign_id
             - last_touch_flow_id
     columns:
@@ -118,11 +118,9 @@ models:
         description: Timestamp of the first ever interaction between this campaign/flow and a person. 
       - name: last_event_at
         description: Timestamp of the most recent interaction between this campaign/flow and a person.
-      - name: source_relation
+      - name: source_relation_norm
         description: >
-          The source where this data was pulled from. If you are making use of the `union_schemas` variable, this will be the source schema.
-          If you are making use of the `union_databases` variable, this will be the source database. If you are not unioining together multiple
-          sources, this will be an empty string.
+          Normalized source identifier (catalog/schema prefix removed). Use this for joining to campaigns/flows.
 
   - name: int_klaviyo__person_metrics
     description: > 
