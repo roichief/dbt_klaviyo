@@ -11,6 +11,7 @@ dispatch:
 vars:
   klaviyo_database: 0006_wsg
   klaviyo_schema: default_stg_klaviyo
+  klaviyo__default_source_relation: 'klaviyo'
 
   # new-style
   event: "{{ ref('stg_klaviyo__event') }}"
