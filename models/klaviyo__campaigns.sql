@@ -1,13 +1,10 @@
 with campaign as (
   select
     *,
-    /* Normalize `source_relation` by dropping any leading catalog and defaulting when blank */
+    /* collapse '', null, and remove a leading catalog. */
     coalesce(
-      nullif(
-        regexp_replace(lower(trim(source_relation)), '^[^.]+\\.', ''),  -- drop catalog prefix
-        ''
-      ),
-      '{{ var("klaviyo__default_source_relation", "klaviyo") }}'
+      nullif(regexp_replace(lower(trim(source_relation)), '^[^.]+\\.', ''), ''),
+      'klaviyo'
     ) as source_relation_norm
   from {{ var('campaign') }}
 ),
@@ -15,26 +12,13 @@ with campaign as (
 campaign_metrics as (
   select
     *,
-    /* Normalize to match join key */
-    coalesce(
-      nullif(
-        regexp_replace(lower(trim(source_relation)), '^[^.]+\\.', ''),
-        ''
-      ),
-      '{{ var("klaviyo__default_source_relation", "klaviyo") }}'
-    ) as source_relation_norm
+    /* the metrics model already contains the normalized column used for joins */
+    coalesce(source_relation_norm, 'klaviyo') as source_relation_norm
   from {{ ref('int_klaviyo__campaign_flow_metrics') }}
 ),
 
 campaign_join as (
-  {# prevent duplicate columns when adding the metrics star #}
-  {% set exclude_fields = [
-      'last_touch_campaign_id',
-      'last_touch_flow_id',
-      'source_relation',
-      'source_relation_norm'
-  ] %}
-
+  {% set exclude_fields = ['last_touch_campaign_id','last_touch_flow_id','source_relation'] %}
   select
     campaign.*,
     {{ dbt_utils.star(from=ref('int_klaviyo__campaign_flow_metrics'), except=exclude_fields) }}
