@@ -3,21 +3,13 @@ version: 2
 models:
   - name: klaviyo__events
     description: > 
-      Table of Klaviyo events, enriched with attribution data (see `int_klaviyo__event_attribution` for details), and 
-      information regarding the event's associated user, flow, campaign, and platform/integration. 
+      Table of Klaviyo events, enriched with attribution data (see `int_klaviyo__event_attribution` for details), and information regarding the event's associated user, flow, campaign, and platform/integration. 
 
-      Note: this model has an incremental materialization. Custom event-columns specified by the `klaviyo__event_pass_through_columns`
-      variable will appear here as well.
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - event_id
-            - source_relation
+      Note: this model has an incremental materialization. Custom event columns specified by the `klaviyo__event_pass_through_columns` variable will appear here as well.
     columns:
       - name: variation_id
-        description: >
-          Unique ID of the attributed flow or campaign variation group. 
-          This does not map onto another table. 
+        description: > 
+          Unique ID of the attributed flow or campaign variation group. This does not map onto another table. 
       - name: campaign_id
         description: Foreign key referencing the CAMPAIGN that the event is attributed to. 
       - name: occurred_at
@@ -25,15 +17,14 @@ models:
       - name: flow_id
         description: Foreign key referencing the FLOW that the event is attributed to. 
       - name: flow_message_id
-        description: >
-          Unique ID of the FLOW_MESSAGE that the event is attributed to. 
-          This does not map onto another table.
+        description: > 
+          Unique ID of the FLOW_MESSAGE that the event is attributed to. This does not map onto another table.
       - name: event_id
         description: Unique ID of the event. 
         tests:
           - not_null
       - name: metric_id
-        description: Foreign key referencing the metric being captured. 
+        description: Foreign key referencing the METRIC being captured. 
       - name: person_id
         description: Foreign key referencing the PERSON who triggered the event. 
       - name: type
@@ -41,38 +32,37 @@ models:
       - name: uuid
         description: Universally Unique Identifier of the event. 
       - name: numeric_value
-        description: Numeric value associated with the event (ie the dollars associated with a purchase).
+        description: Numeric value associated with the event (e.g. the dollars associated with a purchase).
+      - name: event_attribution
+        description: > 
+          Attribution information for the event, indicating the marketing touchpoint or source (such as campaign or flow) that is credited with influencing or driving the event.
       - name: touch_type
-        description: >
-          Type of touch/message that the event itself is already attributed to in Klaviyo. Either 'flow', 'campaign', or null.
-          Note that the package will refer to campaign and flow interactions as "touches".
+        description: > 
+          Type of touch/message that the event itself is already attributed to in Klaviyo. Either 'flow', 'campaign', or null. Note that the package refers to campaign and flow interactions as "touches".
       - name: occurred_on
         description: Calendar date (UTC) on which the event occurred.
       - name: touch_id
         description: Coalescing of the Klaviyo-attributed campaign_id and flow_id.
       - name: last_touch_at
-        description: >
-          Timestamp of when, relative to the current event, this person last interacted with a campaign or flow 
-          according to Klaviyo. This will be null if the event is not attributed to any flow or campaign. 
+        description: > 
+          Timestamp of when, relative to the current event, this person last interacted with a campaign or flow according to Klaviyo. This will be null if the event is not attributed to any flow or campaign. 
       - name: last_touch_event_type
-        description: >
-          The type of event through which, relative to the current event, the person last interacted with a campaign 
-          or flow. This information is used to determine which lookback window to use (email vs sms).
-          This will be null if the event is not attributed to any flow or campaign.
+        description: > 
+          The type of event through which, relative to the current event, the person last interacted with a campaign or flow. Used to determine which lookback window to use (email vs SMS). Null if the event is not attributed to any flow or campaign.
       - name: last_touch_type 
-        description: What kind of touch the event was attributed to by the package -- 'campaign', 'flow', or null. 
+        description: What kind of touch the event was attributed to by the package – 'campaign', 'flow', or null. 
       - name: last_touch_campaign_id
-        description: Foreign key referencing the CAMPAIGN that the event is attributed to by the package. 
+        description: Foreign key referencing the CAMPAIGN that the event is attributed to by the package's attribution model. 
       - name: last_touch_flow_id
-        description: Foreign key referencing the FLOW that the event is attributed to by the package. 
+        description: Foreign key referencing the FLOW that the event is attributed to by the package's attribution model. 
       - name: campaign_name
-        description: A name for this campaign. If not specified, this will default to the subject of the campaign.
+        description: The name of the campaign associated with this event. If not specified, this defaults to the campaign’s subject line.
       - name: campaign_type
         description: Type of campaign.
       - name: campaign_subject_line
-        description: Type of campaign.
+        description: Subject line of the campaign email associated with this event.
       - name: flow_name
-        description: Name of the flow. 
+        description: Name of the flow associated with this event. 
       - name: person_city
         description: City that the person who triggered this event lives in. 
       - name: person_country
@@ -80,151 +70,113 @@ models:
       - name: person_region
         description: Region or state that the person who triggered this event lives in. 
       - name: person_email
-        description: The email address and the unique identifier for the person who triggered the event. 
+        description: The email address (unique identifier) for the person who triggered this event. 
       - name: person_timezone
-        description: Timezone that the person who triggered this event is situated in. 
+        description: Timezone that the person who triggered this event is located in. 
       - name: integration_id
         description: Foreign key referencing the integration. 
       - name: integration_name
-        description: Name of the platform that triggered the event (either Klaviyo, the API, or another integration).
+        description: Name of the platform or integration that triggered the event (e.g. Klaviyo, API, or another integration).
       - name: integration_category
         description: Use-case category of the platform that sent the event. 
       - name: _fivetran_synced
-        description: UTC Timestamp that indicates the start time of the Fivetran job that synced this event row.
+        description: UTC timestamp indicating when Fivetran last synced this event record.
       - name: unique_event_id
         description: The unique identifier for the combination of event_id and source_relation columns.
       - name: source_relation
-        description: >
-          The source where this data was pulled from. If you are making use of the `union_schemas` variable, this will be the source schema.
-          If you are making use of the `union_databases` variable, this will be the source database. If you are not unioining together multiple
-          sources, this will be an empty string.
+        description: > 
+          The source from which this data was pulled. If using the `klaviyo_union_schemas` variable, this will be the source schema. If using the `klaviyo_union_databases` variable, this will be the source database. If not unioning multiple sources, this will be an empty string.
 
   - name: klaviyo__person_campaign_flow
     description: > 
-      Table that aggregates event metrics to the person-campaign or -flow grain (but note that if a user interacts 
-      with 2 different variations of a flow/campaign somehow, they will have 2 records).  Also note that organic 
-      interactions (someone with null campaign_id/flow_id) are included in this table. 
+      Table that aggregates event metrics to the person-campaign or person-flow grain (each record represents a unique person + campaign or person + flow combination). Organic interactions (events with null campaign_id/flow_id) are also included as separate records. 
 
-      **Counts** of the instances of the events, as well as **sums** of the numeric value associated 
-      with events (i.e. revenue) will be pivoted out into columns, as configured by the `klaviyo__count_metrics` and `klaviyo__sum_revenue_metrics`
-      variables, respectively. See the dbt_project.yml file for the default metrics used. 
-      These columns will be prefixed with `count_` and `sum_revenue_`.
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - person_id
-            - last_touch_campaign_id
-            - last_touch_flow_id
-            - variation_id
-            - source_relation
+      **Counts** of event instances and **sums** of numeric event values (i.e. revenue) are pivoted into columns per event type, as configured by the `klaviyo__count_metrics` and `klaviyo__sum_revenue_metrics` variables, respectively. See the dbt_project.yml for default metrics. These columns are prefixed with `count_` and `sum_revenue_`.
     columns:
       - name: person_id
-        description: Foreign key referencing the PERSON who interacted with the flow/message.
+        description: Foreign key referencing the PERSON who interacted with the campaign/flow.
       - name: last_touch_campaign_id
         description: Foreign key referencing the CAMPAIGN attributed with these metrics (by the package's attribution model).
       - name: last_touch_flow_id
         description: Foreign key referencing the FLOW attributed with these metrics (by the package's attribution model).
       - name: campaign_name
-        description: A name for this campaign. If not specified, this will default to the subject of the campaign.
+        description: Name of the campaign (defaults to the campaign’s subject if no explicit name).
       - name: flow_name
         description: Name of the flow. 
       - name: variation_id
         description: > 
-          Unique ID of the attributed flow or campaign variation group. 
-          This does not map onto another table. 
+          Unique ID of the attributed campaign or flow variation group. This does not map onto another table. 
       - name: first_event_at
-        description: Timestamp of the first ever interaction between this campaign/flow and a person. In other words, the first event trigger attributed to the campaign/flow. 
+        description: Timestamp of the first event attributed to this campaign/flow for this person. 
       - name: last_event_at
-        description: Timestamp of the most recent interaction between this campaign/flow and a person. In other words, the last event trigger attributed to the campaign/flow. 
+        description: Timestamp of the most recent event attributed to this campaign/flow for this person. 
       - name: source_relation
-        description: >
-          The source where this data was pulled from. If you are making use of the `union_schemas` variable, this will be the source schema.
-          If you are making use of the `union_databases` variable, this will be the source database. If you are not unioining together multiple
-          sources, this will be an empty string.
-          
+        description: > 
+          The source from which this data was pulled. If using `union_schemas`, this is the source schema; if using `union_databases`, this is the source database. Empty string if not unioning multiple sources.
+
   - name: klaviyo__campaigns 
     description: > 
-      Table of unique campaign versions. A campaign with 2 variations will have 2 distinct rows. 
-      **Counts** of the unique users and instances of the events, as well as **sums** of the numeric value associated 
-      with events (i.e. revenue) will be pivoted out into columns, as configured by the `klaviyo__count_metrics` and `klaviyo__sum_revenue_metrics`
-      variables, respectively. See the dbt_project.yml file for the default metrics used. 
-      These columns will be prefixed with `count_`, `unique_count_`, and `sum_revenue_`.
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - campaign_variation_key
-            - source_relation
+      Table of unique campaign versions. (A campaign with multiple test variations will have multiple rows, one per variation.) 
+
+      **Counts** of unique users and instances of conversion events, as well as **sums** of revenue associated with those events, are pivoted into metric columns, configured by `klaviyo__count_metrics` and `klaviyo__sum_revenue_metrics` variables. These columns are prefixed with `count_`, `unique_count_`, and `sum_revenue_`.
     columns:
       - name: campaign_variation_key
-        description: Unique key hashed on the campaign and variation IDs. 
+        description: Unique key hashed from the campaign ID and variation ID (identifies a specific campaign variation).
         tests:
           - not_null
       - name: campaign_type
         description: Type of campaign.
       - name: created_at
-        description: Timestamp of when the campaign was created, in UTC.
+        description: Timestamp of when the campaign was created (UTC).
       - name: email_template_id
-        description: >
-          Foreign key referencing the ID of the `email_template` object that will be the 
-          content of this campaign. Note the Email Template is copied when creating this campaign, 
-          so future changes to that Email Template will not alter the content of this campaign.
+        description: > 
+          Foreign key referencing the Email Template object used as content for this campaign. (The template is copied at campaign creation, so later changes to the template do not affect the campaign’s content.)
       - name: from_email
-        description: The email address your email will be sent from and will be used in the reply-to header.
+        description: The email address the campaign is sent from (also used in the reply-to header).
       - name: from_name
-        description: The name or label associated with the email address you're sending from.
+        description: The name associated with the sender email address.
       - name: campaign_id
         description: Unique ID of the campaign.
       - name: campaign_name
-        description: A name for this campaign. If not specified, this will default to the subject of the campaign.
+        description: The name of this campaign (defaults to the subject line if no name given).
       - name: scheduled_to_send_at
-        description: >
-          Timestamp of when the campaign is scheduled to be sent in the future, if 
-          ["smart send time"](https://help.klaviyo.com/hc/en-us/articles/360029794371-Smart-Send-Time-in-Klaviyo#how-to-utilize-smart-send-time3) is used. 
+        description: > 
+          Timestamp of when the campaign is scheduled to be sent (if using Klaviyo “Smart Send Time” scheduling). 
       - name: sent_at
-        description: Timestamp of when the campaign was first sent out to users. 
+        description: Timestamp of when the campaign was first sent to users.
       - name: status
-        description: Current status of the campaign. Either "draft", "scheduled", "sent", or "cancelled".
+        description: Current status of the campaign (e.g. "draft", "scheduled", "sent", or "cancelled").
       - name: status_id
-        description: Corresponding ID to the current status.
+        description: Numeric ID corresponding to the current status.
       - name: subject
-        description: The subject line of the campaign's email. 
+        description: The subject line of the campaign email. 
       - name: updated_at
         description: Timestamp of when the campaign was last updated.
       - name: variation_id 
-        description: >
-          Unique ID of the attributed campaign variation group. 
-          This does not map onto another table. 
+        description: > 
+          Unique ID of the campaign’s variation group (for A/B tests). This does not map onto another table. 
       - name: total_count_unique_people
-        description: The count of the distinct people that have interacted with this campaign.
+        description: The count of distinct people that have interacted with this campaign.
       - name: first_event_at
-        description: Timestamp of the first ever interaction between this campaign and a person. 
+        description: Timestamp of the first event (interaction or conversion) associated with this campaign. 
       - name: last_event_at
-        description: Timestamp of the most recent interaction between this campaign and a person.
+        description: Timestamp of the most recent event associated with this campaign.
       - name: is_archived
-        description: Boolean of whether the campaign has been archived or not
+        description: Boolean indicating whether the campaign has been archived.
       - name: scheduled_at
-        description: The datetime when the campaign was scheduled for future sending
+        description: The datetime when the campaign was scheduled for sending in the future (if applicable).
       - name: source_relation
-        description: >
-          The source where this data was pulled from. If you are making use of the `union_schemas` variable, this will be the source schema.
-          If you are making use of the `union_databases` variable, this will be the source database. If you are not unioining together multiple
-          sources, this will be an empty string.
+        description: > 
+          The source from which this data was pulled. If using `union_schemas`, this is the source schema; if using `union_databases`, this is the source database. Empty string if not unioning multiple sources.
 
   - name: klaviyo__flows 
     description: > 
-      Table of unique flow versions. A flow with 2 variations will have 2 distinct rows. 
-      **Counts** of the unique users and instances of the events, as well as **sums** of the numeric value associated 
-      with events (i.e. revenue) will be pivoted out into columns, as configured by the `klaviyo__count_metrics` and `klaviyo__sum_revenue_metrics`
-      variables, respectively. See the dbt_project.yml file for the default metrics used. 
-      These columns will be prefixed with `count_`, `unique_count_`, and `sum_revenue_`.
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - flow_variation_key
-            - source_relation
+      Table of unique flow versions. (A flow with multiple test variations will have multiple rows, one per variation.) 
+
+      **Counts** of unique users and instances of conversion events, as well as **sums** of revenue associated with those events, are pivoted into metric columns, configured by `klaviyo__count_metrics` and `klaviyo__sum_revenue_metrics` variables. These columns are prefixed with `count_`, `unique_count_`, and `sum_revenue_`.
     columns:
       - name: flow_variation_key
-        description: Unique key hashed on the flow and variation IDs. 
+        description: Unique key hashed from the flow ID and variation ID (identifies a specific flow version). 
         tests:
           - not_null
       - name: created_at
@@ -234,49 +186,35 @@ models:
       - name: flow_name
         description: Name of the flow. 
       - name: status
-        description: Current status of the flow. Either 'manual', 'live', or 'draft'. Read more [here](https://help.klaviyo.com/hc/en-us/articles/115002774932-Getting-Started-with-Flows#the-flow-action-status9).
+        description: Current status of the flow (e.g. 'manual', 'live', or 'draft').
       - name: updated_at
         description: Timestamp of when the flow was last updated. 
       - name: variation_id 
-        description: >
-          Unique ID of the attributed flow variation group. 
-          This does not map onto another table. 
+        description: > 
+          Unique ID of the flow’s variation group (for A/B tests). This does not map onto another table. 
       - name: total_count_unique_people
-        description: The count of the distinct people that have interacted with this flow.
+        description: The count of distinct people that have interacted with this flow.
       - name: first_event_at
-        description: Timestamp of the first ever interaction between this flow and a person. 
+        description: Timestamp of the first event associated with this flow. 
       - name: last_event_at
-        description: Timestamp of the most recent interaction between this flow and a person.
+        description: Timestamp of the most recent event associated with this flow.
       - name: is_archived
-        description: Boolean of whether this record has been archived
+        description: Boolean indicating whether this flow (or variation) has been archived.
       - name: trigger_type
-        description: Corresponds to the object which triggered the flow.
+        description: Describes what object or action triggers the flow (e.g. a list subscription, metric event, etc.).
       - name: source_relation
-        description: >
-          The source where this data was pulled from. If you are making use of the `union_schemas` variable, this will be the source schema.
-          If you are making use of the `union_databases` variable, this will be the source database. If you are not unioining together multiple
-          sources, this will be an empty string.
+        description: > 
+          The source from which this data was pulled. If using `union_schemas`, this is the source schema; if using `union_databases`, this is the source database. Empty string if not unioning multiple sources.
 
   - name: klaviyo__persons
     description: > 
       Table of unique person profiles, enhanced with event, campaign, flow, and revenue metrics. 
 
-      **Counts** of instances of triggered events and **sums** of the numeric value (i.e. revenue) associated 
-      with events (total vs organic/not attributed to flows or campaigns) will be pivoted out into columns, as configured by the 
-      `klaviyo__count_metrics` and `klaviyo__sum_revenue_metrics`variables, respectively. See the dbt_project.yml file for 
-      the default metrics used. 
-      These columns will be prefixed with `total_count_`, `total_sum_revenue_` (organic + attributed), and `organic_sum_revenue_`
-      (not attributed to a campaign or flow). 
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - person_id
-            - source_relation
+      **Counts** of triggered events and **sums** of their numeric values (both total and only organic/unattributed events) are pivoted into columns, configured by the `klaviyo__count_metrics` and `klaviyo__sum_revenue_metrics` variables. These columns are prefixed with `total_count_`, `total_sum_revenue_` (for combined attributed + organic metrics), and `organic_sum_revenue_` (for metrics not attributed to any campaign/flow). 
     columns:
       - name: person_id
-        description: >
-          Unique ID of the user if you use your own unique identifier. Otherwise, Klaviyo 
-          recommends using the email as the primary key. 
+        description: > 
+          Unique ID of the person (if you use a custom identifier). Otherwise, Klaviyo often uses the email as the primary key. 
         tests:
           - not_null
       - name: address_1
@@ -284,15 +222,15 @@ models:
       - name: address_2
         description: Second line of the person's address.
       - name: city
-        description: City they live in.
+        description: City where the person lives.
       - name: country
-        description: Country they live in.
+        description: Country where the person lives.
       - name: zip
-        description: Postal code where they live.
+        description: Postal code for the person’s address.
       - name: created_at
         description: Timestamp of when the person's profile was created. 
       - name: email
-        description: The email address for a profile.
+        description: The email address for the person’s profile.
       - name: full_name
         description: Person's full name.
       - name: latitude
@@ -300,37 +238,35 @@ models:
       - name: longitude
         description: Longitude of the person's location. 
       - name: organization
-        description: Business organization they belong to. 
+        description: Company or organization the person is associated with. 
       - name: phone_number
-        description: Associated phone number.
+        description: Phone number associated with the person.
       - name: region
-        description: Region or state they live in.
+        description: State/region where the person lives.
       - name: timezone
-        description: Timezone they are situated in.
+        description: Timezone of the person's location.
       - name: title
-        description: Title at their business or organization.
+        description: Job title or role of the person.
       - name: updated_at
-        description: Timestamp of when the person profile was last updated. 
+        description: Timestamp of the last update to the person’s profile. 
       - name: count_total_campaigns
         description: Count of the number of campaigns this person has interacted with.
       - name: count_total_flows
         description: Count of the number of flows this person has interacted with.
       - name: first_event_at
-        description: Timestamp of when the user first triggered an event (not limited to campaign and flow interactions).
+        description: Timestamp of when the user first triggered *any* event.
       - name: last_event_at
-        description: Timestamp of when the user last triggered an event (not limited to campaign and flow interactions).
+        description: Timestamp of when the user last triggered *any* event.
       - name: first_campaign_touch_at
-        description: Timestamp of when the user first interacted with a campaign.  
+        description: Timestamp of the user's first-ever interaction with a campaign.  
       - name: last_campaign_touch_at
-        description: Timestamp of when the user last interacted with a campaign.  
+        description: Timestamp of the user's most recent interaction with a campaign.  
       - name: first_flow_touch_at
-        description: Timestamp of when the user first interacted with a flow.
+        description: Timestamp of the user's first-ever interaction with a flow.
       - name: last_flow_touch_at
-        description: Timestamp of when the user last interacted with a flow.
+        description: Timestamp of the user's most recent interaction with a flow.
       - name: last_event_date_at
-        description: Date and time of the most recent event the triggered an update to the profile, in ISO 8601 format (YYYY-MM-DDTHH:MM:SS.mmmmmm)
+        description: Date and time of the most recent event that triggered an update to this profile (ISO 8601 format).
       - name: source_relation
-        description: >
-          The source where this data was pulled from. If you are making use of the `union_schemas` variable, this will be the source schema.
-          If you are making use of the `union_databases` variable, this will be the source database. If you are not unioining together multiple
-          sources, this will be an empty string.
+        description: > 
+          The source from which this data was pulled. If using `union_schemas`, this is the source schema; if using `union_databases`, this is the source database. Empty string if not unioning multiple sources.

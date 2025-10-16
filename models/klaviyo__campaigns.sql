@@ -1,43 +1,75 @@
-with campaign as (
-  select
-    *,
-    /* collapse '', null, and remove a leading catalog. */
-    coalesce(
-      nullif(regexp_replace(lower(trim(source_relation)), '^[^.]+\\.', ''), ''),
-      'klaviyo'
-    ) as source_relation_norm
-  from {{ var('campaign') }}
+{{ config(materialized='table') }}
+
+WITH campaigns AS (
+    SELECT * 
+    FROM {{ ref('stg_klaviyo_campaigns') }}
 ),
 
-campaign_metrics as (
-  -- Do NOT re-alias source_relation_norm here; it already exists in the metrics model
-  select *
-  from {{ ref('int_klaviyo__campaign_flow_metrics') }}
+person_campaigns AS (
+    SELECT 
+        last_touch_campaign_id AS campaign_id,
+        variation_id,
+        {% for metric in var('klaviyo__count_metrics', []) %}
+            SUM({{ 'count_' ~ metric|lower|replace(' ', '_') }}) AS count_{{ metric|lower|replace(' ', '_') }},
+            SUM(CASE WHEN {{ 'count_' ~ metric|lower|replace(' ', '_') }} > 0 THEN 1 ELSE 0 END) AS unique_count_{{ metric|lower|replace(' ', '_') }},
+        {% endfor %}
+        {% for metric in var('klaviyo__sum_revenue_metrics', []) %}
+            SUM({{ 'sum_revenue_' ~ metric|lower|replace(' ', '_') }}) AS sum_revenue_{{ metric|lower|replace(' ', '_') }},
+            {% if metric not in var('klaviyo__count_metrics', []) %}
+                SUM(CASE WHEN {{ 'sum_revenue_' ~ metric|lower|replace(' ', '_') }} > 0 THEN 1 ELSE 0 END) AS unique_count_{{ metric|lower|replace(' ', '_') }},
+            {% endif %}
+        {% endfor %}
+        COUNT(DISTINCT person_id) AS total_count_unique_people,
+        MIN(first_event_at) AS first_event_at,
+        MAX(last_event_at) AS last_event_at,
+        source_relation
+    FROM {{ ref('klaviyo__person_campaign_flow') }}
+    WHERE last_touch_campaign_id IS NOT NULL
+    GROUP BY campaign_id, variation_id, source_relation
 ),
 
-campaign_join as (
-  {# avoid dupes with campaign.* #}
-  {% set exclude_fields = [
-      'last_touch_campaign_id',
-      'last_touch_flow_id',
-      'source_relation',
-      'source_relation_norm'
-  ] %}
-
-  select
-    campaign.*,
-    {{ dbt_utils.star(from=ref('int_klaviyo__campaign_flow_metrics'), except=exclude_fields) }}
-  from campaign
-  left join campaign_metrics
-    on campaign.campaign_id = campaign_metrics.last_touch_campaign_id
-   and campaign.source_relation_norm = campaign_metrics.source_relation_norm
-),
-
-final as (
-  select
-    *,
-    {{ dbt_utils.generate_surrogate_key(['campaign_id','variation_id']) }} as campaign_variation_key
-  from campaign_join
+final AS (
+    SELECT
+        {{ dbt_utils.generate_surrogate_key([
+            "cast(campaign_id as string)",
+            "cast(variation_id as string)",
+            "coalesce(source_relation, '')"
+        ]) }} AS campaign_variation_key,
+        c.campaign_type,
+        c.created_at,
+        c.email_template_id,
+        c.from_email,
+        c.from_name,
+        c.campaign_id,
+        c.campaign_name,
+        c.scheduled_to_send_at,
+        c.sent_at,
+        c.status,
+        c.status_id,
+        c.subject,
+        c.updated_at,
+        c.variation_id,
+        m.total_count_unique_people,
+        m.first_event_at,
+        m.last_event_at,
+        {% for metric in var('klaviyo__count_metrics', []) -%}
+            m.count_{{ metric|lower|replace(' ', '_') }},
+            m.unique_count_{{ metric|lower|replace(' ', '_') }},
+        {%- endfor %}
+        {% for metric in var('klaviyo__sum_revenue_metrics', []) -%}
+            m.sum_revenue_{{ metric|lower|replace(' ', '_') }},
+            {% if metric not in var('klaviyo__count_metrics', []) %}
+                m.unique_count_{{ metric|lower|replace(' ', '_') }},
+            {% endif %}
+        {%- endfor %}
+        c.is_archived,
+        c.scheduled_at,
+        c.source_relation
+    FROM campaigns AS c
+    LEFT JOIN person_campaigns AS m
+      ON c.campaign_id = m.campaign_id 
+      AND c.variation_id = m.variation_id 
+      AND c.source_relation = m.source_relation
 )
 
-select * from final
+SELECT * FROM final;
