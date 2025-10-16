@@ -1,66 +1,70 @@
-
-WITH flows AS (
-    SELECT * 
-    FROM {{ ref('stg_klaviyo_flows') }}
+-- Base flow records from the staging model + a normalized source
+with flow as (
+  select
+      created_at,
+      flow_id,
+      flow_name,
+      status,
+      updated_at,
+      is_archived,
+      trigger_type,
+      source_relation,
+      /* collapse '', null, and remove a leading catalog. */
+      coalesce(
+        nullif(
+          regexp_replace(lower(trim(source_relation)), '^[^.]+\\.', ''),  -- drop catalog prefix
+          ''
+        ),
+        'klaviyo'
+      ) as source_relation_norm
+  from {{ ref('stg_klaviyo__flow') }}
 ),
 
-person_flows AS (
-    SELECT 
-        last_touch_flow_id AS flow_id,
-        variation_id,
-        {% for metric in var('klaviyo__count_metrics', []) %}
-            SUM({{ 'count_' ~ metric|lower|replace(' ', '_') }}) AS count_{{ metric|lower|replace(' ', '_') }},
-            SUM(CASE WHEN {{ 'count_' ~ metric|lower|replace(' ', '_') }} > 0 THEN 1 ELSE 0 END) AS unique_count_{{ metric|lower|replace(' ', '_') }},
-        {% endfor %}
-        {% for metric in var('klaviyo__sum_revenue_metrics', []) %}
-            SUM({{ 'sum_revenue_' ~ metric|lower|replace(' ', '_') }}) AS sum_revenue_{{ metric|lower|replace(' ', '_') }},
-            {% if metric not in var('klaviyo__count_metrics', []) %}
-                SUM(CASE WHEN {{ 'sum_revenue_' ~ metric|lower|replace(' ', '_') }} > 0 THEN 1 ELSE 0 END) AS unique_count_{{ metric|lower|replace(' ', '_') }},
-            {% endif %}
-        {% endfor %}
-        COUNT(DISTINCT person_id) AS total_count_unique_people,
-        MIN(first_event_at) AS first_event_at,
-        MAX(last_event_at) AS last_event_at,
-        source_relation
-    FROM {{ ref('klaviyo__person_campaign_flow') }}
-    WHERE last_touch_flow_id IS NOT NULL
-    GROUP BY flow_id, variation_id, source_relation
+-- Metrics aggregated to flow/variation level
+flow_metrics as (
+  -- IMPORTANT: do NOT recompute source_relation_norm here to avoid duplicates.
+  select *
+  from {{ ref('int_klaviyo__campaign_flow_metrics') }}
 ),
 
-final AS (
-    SELECT
-        {{ dbt_utils.generate_surrogate_key([
-            "cast(flow_id as string)",
-            "cast(variation_id as string)",
-            "coalesce(source_relation, '')"
-        ]) }} AS flow_variation_key,
-        f.created_at,
-        f.flow_id,
-        f.flow_name,
-        f.status,
-        f.updated_at,
-        f.variation_id,
-        m.total_count_unique_people,
-        m.first_event_at,
-        m.last_event_at,
-        {% for metric in var('klaviyo__count_metrics', []) -%}
-            m.count_{{ metric|lower|replace(' ', '_') }},
-            m.unique_count_{{ metric|lower|replace(' ', '_') }},
-        {%- endfor %}
-        {% for metric in var('klaviyo__sum_revenue_metrics', []) -%}
-            m.sum_revenue_{{ metric|lower|replace(' ', '_') }},
-            {% if metric not in var('klaviyo__count_metrics', []) %}
-                m.unique_count_{{ metric|lower|replace(' ', '_') }},
-            {% endif %}
-        {%- endfor %}
-        f.is_archived,
-        f.trigger_type,
-        f.source_relation
-    FROM flows AS f
-    LEFT JOIN person_flows AS m
-      ON f.flow_id = m.flow_id 
-      AND f.variation_id = m.variation_id 
-      AND f.source_relation = m.source_relation
+final as (
+  select
+      -- stable key at flow + variation grain
+      {{ dbt_utils.generate_surrogate_key(['f.flow_id','m.variation_id']) }} as flow_variation_key,
+
+      -- flow columns (explicit list to avoid duplicates)
+      f.created_at,
+      f.flow_id,
+      f.flow_name,
+      f.status,
+      f.updated_at,
+
+      -- variation_id comes from metrics (staging may not have it)
+      m.variation_id,
+
+      -- all metric columns except key/source fields we don't want twice
+      {{ dbt_utils.star(
+          from=ref('int_klaviyo__campaign_flow_metrics'),
+          except=[
+            'last_touch_campaign_id',
+            'last_touch_flow_id',
+            'variation_id',
+            'source_relation',
+            'source_relation_norm'
+          ],
+          relation_alias='m'
+      ) }},
+
+      -- tail flow fields + sources
+      f.is_archived,
+      f.trigger_type,
+      f.source_relation,
+      f.source_relation_norm
+
+  from flow as f
+  left join flow_metrics as m
+    on f.flow_id = m.last_touch_flow_id
+   and f.source_relation_norm = m.source_relation_norm
 )
 
-SELECT * FROM final;
+select * from final;
