@@ -10,15 +10,19 @@ with flow as (
 ),
 
 flow_metrics as (
-  select
-    *,
-    /* metrics model exposes source_relation_norm already */
-    coalesce(source_relation_norm, 'klaviyo') as source_relation_norm
+  -- Do NOT re-alias source_relation_norm here; it already exists in the metrics model
+  select *
   from {{ ref('int_klaviyo__campaign_flow_metrics') }}
 ),
 
 flow_join as (
-  {% set exclude_fields = ['last_touch_campaign_id','last_touch_flow_id','source_relation'] %}
+  {% set exclude_fields = [
+      'last_touch_campaign_id',
+      'last_touch_flow_id',
+      'source_relation',
+      'source_relation_norm'   -- exclude to avoid duplicate with flow.*
+  ] %}
+
   select
     flow.*,
     {{ dbt_utils.star(from=ref('int_klaviyo__campaign_flow_metrics'), except=exclude_fields) }}

@@ -10,15 +10,19 @@ with campaign as (
 ),
 
 campaign_metrics as (
-  select
-    *,
-    /* the metrics model already contains the normalized column used for joins */
-    coalesce(source_relation_norm, 'klaviyo') as source_relation_norm
+  -- Do NOT re-alias source_relation_norm here; it already exists in the metrics model
+  select *
   from {{ ref('int_klaviyo__campaign_flow_metrics') }}
 ),
 
 campaign_join as (
-  {% set exclude_fields = ['last_touch_campaign_id','last_touch_flow_id','source_relation'] %}
+  {% set exclude_fields = [
+      'last_touch_campaign_id',
+      'last_touch_flow_id',
+      'source_relation',
+      'source_relation_norm'   -- exclude to avoid duplicate with campaign.*
+  ] %}
+
   select
     campaign.*,
     {{ dbt_utils.star(from=ref('int_klaviyo__campaign_flow_metrics'), except=exclude_fields) }}
