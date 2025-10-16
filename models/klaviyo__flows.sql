@@ -16,11 +16,12 @@ flow_metrics as (
 ),
 
 flow_join as (
+  {# avoid dupes with flow.* #}
   {% set exclude_fields = [
       'last_touch_campaign_id',
       'last_touch_flow_id',
       'source_relation',
-      'source_relation_norm'   -- exclude to avoid duplicate with flow.*
+      'source_relation_norm'
   ] %}
 
   select
